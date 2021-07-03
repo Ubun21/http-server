@@ -1,0 +1,18 @@
+<html>
+  <head>
+    <title>cors</title>
+  </head>
+  <body>
+    <script>
+      function reqListener () {
+        console.log("request success");
+      }
+      var oReq = new XMLHttpRequest();
+      oReq.addEventListener("load", reqListener);
+      oReq.open("PUT", "http://b.com:9000/1.txt", true);
+      oReq.withCredentials = true
+      oReq.send("foo=bar&lorem=ipsum");
+    </script>
+    <div>test</div>
+  </body>
+</html>
