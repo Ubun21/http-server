@@ -1,8 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const { getHeader, setHeader } = require('./utils')
+const { open, readFile, readdir } = require('fs/promises')
 
-module.exports = function getPlugin(env, mess) {
+module.exports = async function getPlugin(env, mess) {
   if (mess.response.status) {
     return mess
   }
@@ -20,56 +21,89 @@ module.exports = function getPlugin(env, mess) {
 
   const requestPath = path.resolve(env.root + mess.request.path)
 
-  if (!fs.existsSync(requestPath)) {
-    mess.response.status = 404
-    return mess
-  }
-
-  const fsState = fs.statSync(requestPath)
-
-  if (fsState.isFile()) {
-    // requestHeader Range: bytes=start-end
-    const range = getHeader(mess.request.headers, 'Range')
-    if (range) {
-      debugger
-      const match = range.match(/bytes=(\d+)-(\d+)/)
-      const content = Buffer.alloc(match[2] - match[1] + 1)
-      const fd = fs.openSync(requestPath)
-      fs.readSync(fd, content, 0, content.length, parseInt(match[1]))
-      fs.closeSync(fd)
-      mess.response.status = 206
-      mess.response.body = content
+  let fileHandle 
+  try {
+    fileHandle = await open(requestPath)
+  } catch (error) {
+    // no such file or dir
+    if (error === -2) {
+      mess.response.status = 404
       return mess
     }
+  }
 
-    if (requestPath.includes('.html')) {
-      mess.response.status = 200
-      // Content-Type: text/html; charset=UTF-8
-      setHeader(mess.response.headers, "Content-Type", "text/html")
-      mess.response.body = fs.readFileSync(requestPath)
-    }
-
-    mess.response.status = 200
-    mess.response.body = fs.readFileSync(requestPath)
+  let fsState
+  try {
+    fsState = await fileHandle.stat()
+  } catch (error) {
     
-    return mess
+  }
+
+  try {
+    if (fsState.isFile()) {
+      // requestHeader Range: bytes=start-end
+      const range = getHeader(mess.request.headers, 'Range')
+      if (range) {
+        const match = range.match(/bytes=(\d+)-(\d+)/)
+        const content = Buffer.alloc(match[2] - match[1] + 1)
+  
+        try {
+         const result = await fileHandle.read(content, 0, content, parseInt(match[1]))
+        } catch (error) {
+          console.info(error)
+        } finally {
+          await fileHandle.close()
+        }
+       
+        mess.response.status = 206
+        mess.response.body = content
+        return mess
+      }
+  
+      mess.response.status = 200
+      mess.response.body = await readFile(requestPath)
+      
+      return mess
+    }
+  } catch (error) {
+    console.info(error)
   }
 
   if (fsState.isDirectory()) {
-    const files = fs.readdirSync(requestPath)
+    let files
+    try {
+      files = await readdir(requestPath)
+    } catch (error) {
+      console.error(error)
+    }
     let contentHTML = `<table><tr>`
-    let itemHTML = files.map((item) => {
-      let itemName = item
-      let itemStat = fs.readFileSync(path.resolve(requestPath + itemName))
-      let itmeSize = itemStat.size
-      return `<th>name:${itemName} </th><th>size:${itmeSize}</th>`
-    }).join('')
-    contentHTML += itemHTML + '</tr></table>'
+    for (let file of files) {
+      let fileHandle
+      let fileStat
+      try {
+        fileHandle = await open(requestPath + '/' + file)
+        fileStat = await fileHandle.stat()
+      } catch (error) {
+        console.error(error)
+      }
+      contentHTML += `<th><td>fileName=${file}</td><td>filesize=${fileStat.size}</td><td>createTime=${fileStat.ctime}</td></th>`
+      try {
+        await fileHandle.close()
+      } catch (error) {
+        console.info(error)
+      }
+    }
+    contentHTML += contentHTML + '</tr></table>'
     let html = `<html><head><title>${requestPath}</title><h1></h1>${requestPath}</head></br><body>${contentHTML}</body></html>`
 
     mess.response.status = 200
     mess.response.body = Buffer.from(html)
 
+    try {
+      await fileHandle.close()
+    } catch (error) {
+      
+    }
     return mess
   }
 }

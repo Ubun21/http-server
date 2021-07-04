@@ -1,7 +1,8 @@
 const fs = require('fs')
+const { open, mkdir, writeFile } = require('fs/promises')
 const path = require('path')
 
-module.exports = function postPlugin (env, mess) {
+module.exports = async function postPlugin (env, mess) {
   if (mess.response.status) {
     return mess
   }
@@ -16,13 +17,22 @@ module.exports = function postPlugin (env, mess) {
   }
 
   const requestPath = env.root + mess.request.path
-  if (fs.existsSync(requestPath)) {
-    mess.response.status = 403
-    return mess
-  }
 
-  fs.mkdirSync(path.dirname(requestPath), { recursive: true})
-  fs.writeFileSync(requestPath, mess.request.body)
-  mess.response.status = 201
-  return mess
+  try {
+    const fileHandle = await open(requestPath)
+    if (fileHandle.fd) {
+      mess.response.status = 403
+      return mess
+    }
+  } catch (error) {
+    // no such file or director
+    if (error.errno === -2) {
+      const result = await mkdir(path.dirname(requestPath), { recursive: true})
+      if (!result) {
+       const sucess = await writeFile(requestPath, mess.request.body)
+       mess.response.status = 201
+       return mess
+      }
+    }
+  }
 }

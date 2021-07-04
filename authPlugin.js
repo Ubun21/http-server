@@ -1,7 +1,8 @@
 const { getHeader, setHeader } = require('./utils')
 const path = require('path')
-const fs = require('fs')
-module.exports = function auth(env, mess) {
+const { writeFile, readFile } = require('fs/promises')
+
+module.exports = async function auth(env, mess) {
   if (mess.response.status) {
     return mess
   }
@@ -17,8 +18,11 @@ module.exports = function auth(env, mess) {
       if (user === 'admin' && pass === '123456') {
         let sessionID = 'session' + new Date().getTime()
         let sessionPath = path.resolve(env.session, sessionID)
-        fs.writeFileSync(sessionPath, user)
-
+        try {
+          const result = await writeFile(sessionPath, user)
+        } catch (error) {
+          console.info(error)
+        }
         setHeader(mess.response.headers, 'Set-Cookie', 'sessionid=' + sessionID + ';max-age=3600')
         return mess
       } else {
@@ -37,7 +41,12 @@ module.exports = function auth(env, mess) {
     const match = cookieData.match(/sessionid=(session\d+)/)
     if (match && match[1]) {
       const sessionPath = path.resolve(env.session, match[1]) 
-      const data = fs.readFileSync(sessionPath).toString()
+      let data = ''
+      try {
+        data = await readFile(sessionPath)
+      } catch (error) {
+        console.info(error)
+      }
       if (data === 'admin') {
         return mess
       }

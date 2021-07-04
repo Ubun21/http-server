@@ -1,28 +1,4 @@
 const { writeFile, readFile, stat, unlink, appendFile, open, readdir } = require('fs/promises');
-const fs = require('fs');
-
-
-function readFilePart(fd, buffer, offset, length, position) {
-  return new Promise((resolve, reject) => {
-    fs.read(fd, buffer, offset, length, position, (err, data) => {
-      if (err) {
-        reject(err)
-      }
-      resolve(data)
-    })
-  })
-}
-
-function getFd(path) {
-  return new Promise((resolve, reject) => {
-    fs.open(path, 'wx', (err, data) => {
-      if (err) {
-        reject(err)
-      }
-      resolve(data)
-    })
-  })
-}
 
 (async () => {
   // try {
@@ -71,18 +47,35 @@ function getFd(path) {
   //   console.error(err);
   // }
 
+  // try {
+  //   const fHandler = await open('./message.tt')
+  //   const buffer = Buffer.alloc(2)
+  //   const filePart = await fHandler.read(buffer, 0, 2, 0)
+  //   for (let i = 0; i < buffer.length; i++) {
+  //     console.info(String.fromCharCode(buffer[i]))
+  //   }
+  // } catch (err) {
+  //   console.error(err)
+  //   console.info('file not exits')
+  // }
+
   try {
-    const fHandler = await open('./message.txt')
-    const buffer = Buffer.alloc(2)
-    const filePart = await fHandler.read(buffer, 0, 2, 0)
-    for (let i = 0; i < buffer.length; i++) {
-      console.info(String.fromCharCode(buffer[i]))
+    const fHandler = await open('./www')
+    const fstat = await fHandler.stat()
+    if (fstat.isDirectory()) {
+      const files = await readdir('./www')
+      for (const file of files) {
+        const fHandler = await open('./www/' + file)
+        const fstat = await fHandler.stat()
+        console.info('filename=' + file + 'size=' + fstat.size)
+        await fHandler.close()
+      }
+      await fHandler.close()
     }
   } catch (err) {
     console.error(err)
     console.info('file not exits')
   }
-
   
 })()
 

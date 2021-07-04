@@ -24,17 +24,17 @@ module.exports = (connection) => {
     parser.append(data)
   })
 
-  parser.on('fished', mess => {
+  parser.on('fished', async (mess) => {
     console.info('called')
     debugger
     mess = corsPlugin(mess)
-    mess = postPlugin(env, mess)
-    mess = checkPlugin(env, mess)
-    mess = optionsPlugin(env, mess)
-    mess = authPluin(env, mess)
-    mess = getPlugin(env, mess)
-    mess = putPlugin(env, mess)
-    mess = deletePlug(env, mess)
+    mess = await postPlugin(env, mess)
+    mess = await checkPlugin(env, mess)
+    mess = await optionsPlugin(env, mess)
+    mess = await authPluin(env, mess)
+    mess = await getPlugin(env, mess)
+    mess = await putPlugin(env, mess)
+    mess = await deletePlug(env, mess)
     let response = makeResponse(mess)
     connection.end(response)
   })

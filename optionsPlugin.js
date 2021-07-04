@@ -1,8 +1,9 @@
 const fs = require('fs')
 const path = require('path')
 const { setHeader } = require('./utils')
+const { open } = require('fs/promises')
 
-module.exports = function optionsPlugin(env, message) {
+module.exports = async function optionsPlugin(env, message) {
   if (message.response.status) {
     return message
   }
@@ -19,19 +20,36 @@ module.exports = function optionsPlugin(env, message) {
 
   const requestPath = path.resolve(env.root + message.request.path)
 
-  if (!fs.existsSync(requestPath)) {
-    message.response.status = 404
-    return message
+  let fileHandle
+  let fileStat
+  try {
+    fileHandle = await open(requestPath)
+    fileStat = await fileHandle.stat()
+  } catch (error) {
+    if (error.errno === -2) {
+      message.response.status = 404
+    }
   }
 
-  const fsStat = fs.statSync(requestPath)
   if (fsStat.isFile()) {
     setHeader(message.response.headers, 'Access-Control-Allow-Methods', 'GET, PUT, DELETE')
     message.response.status = 200
+
+    try {
+      const result = await fileHandle.close()
+    } catch (error) {
+      console.error(error)
+    }
     return message
   }
 
   setHeader(message.response.headers, 'Access-Control-Allow-Methods', 'GET, POST')
   message.response.status = 200
+
+  try {
+    const result = await fileHandle.close()
+  } catch (error) {
+    console.error(error)
+  }
   return message
 }
